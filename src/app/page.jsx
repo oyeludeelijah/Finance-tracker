@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { useCurrency } from "@/utils/useCurrency";
+import { supabase } from "@/lib/supabase";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -86,38 +87,49 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const { symbol } = useCurrency();
-  const { session } = useAuth();
-  const token = session?.access_token;
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState({ amount: "", description: "", category: "Food", type: "expense" });
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["transactions", token],
+    queryKey: ["transactions", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/transactions", { headers: { Authorization: token ? `Bearer ${token}` : "" } });
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
     },
+    enabled: !!user,
   });
 
   const { data: budgets = [] } = useQuery({
-    queryKey: ["budgets", token],
+    queryKey: ["budgets", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/budgets", { headers: { Authorization: token ? `Bearer ${token}` : "" } });
-      if (!res.ok) return [];
-      return res.json();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("budgets")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
+    enabled: !!user,
   });
 
   const addMutation = useMutation({
     mutationFn: async (data) => {
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to add");
-      return res.json();
+      if (!user) throw new Error("Unauthorized");
+      const { data: newTransaction, error } = await supabase
+        .from("transactions")
+        .insert([{ user_id: user.id, ...data }])
+        .select()
+        .single();
+      if (error) throw error;
+      return newTransaction;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });

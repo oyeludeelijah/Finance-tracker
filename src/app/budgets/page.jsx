@@ -4,6 +4,7 @@ import { Target, Plus, TrendingUp, TrendingDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/utils/useCurrency";
 import { useAuth } from "@/hooks/useAuth.jsx";
+import { supabase } from "@/lib/supabase";
 
 const M3 = {
   surface: "#1C1B1F",
@@ -50,8 +51,7 @@ export default function BudgetsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [formData, setFormData] = useState({ category: "Food", limit_amount: "" });
   const { symbol, setCurrency, CURRENCIES } = useCurrency();
-  const { session } = useAuth();
-  const token = session?.access_token;
+  const { user } = useAuth();
 
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
@@ -59,31 +59,43 @@ export default function BudgetsPage() {
   const timePercent = (daysPassed / daysInMonth) * 100;
 
   const { data: budgets = [] } = useQuery({
-    queryKey: ["budgets", token],
+    queryKey: ["budgets", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/budgets", { headers: { Authorization: token ? `Bearer ${token}` : "" } });
-      if (!res.ok) return [];
-      return res.json();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("budgets")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
+    enabled: !!user,
   });
 
   const { data: transactions = [] } = useQuery({
-    queryKey: ["transactions", token],
+    queryKey: ["transactions", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/transactions", { headers: { Authorization: token ? `Bearer ${token}` : "" } });
-      if (!res.ok) return [];
-      return res.json();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
+    enabled: !!user,
   });
 
   const addMutation = useMutation({
     mutationFn: async (data) => {
-      const res = await fetch("/api/budgets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
-        body: JSON.stringify(data),
-      });
-      return res.json();
+      if (!user) throw new Error("Unauthorized");
+      const { data: newBudget, error } = await supabase
+        .from("budgets")
+        .insert([{ user_id: user.id, ...data, period: "monthly" }])
+        .select()
+        .single();
+      if (error) throw error;
+      return newBudget;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budgets"] });

@@ -11,6 +11,7 @@ import {
 import { Download, TrendingUp, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { useCurrency } from "@/utils/useCurrency";
+import { supabase } from "@/lib/supabase";
 
 const M3 = {
   surface: "#1C1B1F",
@@ -55,17 +56,22 @@ const CustomTooltip = ({ active, payload, label, symbol }) => {
 };
 
 export default function HistoryPage() {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const { symbol } = useCurrency();
-  const token = session?.access_token;
 
   const { data: transactions = [] } = useQuery({
-    queryKey: ["transactions", token],
+    queryKey: ["transactions", user?.id],
     queryFn: async () => {
-      const res = await fetch("/api/transactions", { headers: { Authorization: token ? `Bearer ${token}` : "" } });
-      if (!res.ok) return [];
-      return res.json();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1000); // More for history
+      if (error) throw error;
+      return data;
     },
+    enabled: !!user,
   });
 
   const [weekOffset, setWeekOffset] = useState(0);
