@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Target, Plus, TrendingUp, TrendingDown, X } from "lucide-react";
+import { Target, Plus, TrendingUp, TrendingDown, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/utils/useCurrency";
 import { useAuth } from "@/hooks/useAuth.jsx";
@@ -54,9 +54,6 @@ export default function BudgetsPage() {
   const { user } = useAuth();
 
   const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const daysPassed = today.getDate();
-  const timePercent = (daysPassed / daysInMonth) * 100;
 
   const { data: budgets = [] } = useQuery({
     queryKey: ["budgets", user?.id],
@@ -91,7 +88,7 @@ export default function BudgetsPage() {
       if (!user) throw new Error("Unauthorized");
       const { data: newBudget, error } = await supabase
         .from("budgets")
-        .insert([{ user_id: user.id, ...data, period: "monthly" }])
+        .insert([{ user_id: user.id, ...data, period: "daily" }])
         .select()
         .single();
       if (error) throw error;
@@ -106,13 +103,30 @@ export default function BudgetsPage() {
     onError: () => toast.error("Failed to create budget"),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      if (!user) throw new Error("Unauthorized");
+      const { error } = await supabase.from("budgets").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      toast.success("Budget deleted!");
+    },
+    onError: (e) => toast.error(e.message || "Failed to delete budget"),
+  });
+
   const budgetStats = budgets.map((b) => {
     const spent = transactions
-      .filter((t) => t.category === b.category && t.type === "expense")
+      .filter((t) => {
+        if (t.category !== b.category || t.type !== "expense") return false;
+        const txDate = new Date(t.created_at);
+        return txDate.toDateString() === today.toDateString();
+      })
       .reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const percent = Math.min((spent / parseFloat(b.limit_amount)) * 100, 100);
-    const isOverpacing = percent > timePercent * 1.1;
-    return { ...b, spent, percent, isOverpacing };
+    return { ...b, spent, percent };
   });
 
   const totalLimit = budgets.reduce((s, b) => s + parseFloat(b.limit_amount || 0), 0);
@@ -161,7 +175,7 @@ export default function BudgetsPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
             <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>
-              Monthly Overview
+              Daily Overview
             </p>
             <h2 className="text-3xl md:text-4xl font-bold" style={{ color: "#fff" }}>
               {symbol}{totalSpent.toLocaleString()}
@@ -170,7 +184,7 @@ export default function BudgetsPage() {
               </span>
             </h2>
             <p className="text-[10px] md:text-xs mt-2" style={{ color: "#ffffff99" }}>
-              {Math.round(timePercent)}% of the month has passed
+              Today's spending across all budgets
             </p>
           </div>
           <div className="text-left sm:text-right w-full sm:w-auto" style={{ color: "#ffffff99" }}>
@@ -196,7 +210,7 @@ export default function BudgetsPage() {
       {showAdd && (
         <div style={{ ...card, background: M3.surfaceContainer }} className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold" style={{ color: M3.onSurface }}>Set Monthly Budget</h3>
+            <h3 className="font-semibold" style={{ color: M3.onSurface }}>Set Daily Budget</h3>
             <button onClick={() => setShowAdd(false)} style={{ color: M3.onSurfaceVariant }}>
               <X size={18} />
             </button>
@@ -213,7 +227,7 @@ export default function BudgetsPage() {
             </select>
             <input
               type="number"
-              placeholder={`Monthly limit (${symbol})`}
+              placeholder={`Daily limit (${symbol})`}
               style={inputStyle}
               value={formData.limit_amount}
               onChange={(e) => setFormData({ ...formData, limit_amount: e.target.value })}
@@ -241,21 +255,29 @@ export default function BudgetsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {budgetStats.map((b) => {
-            const barColor = b.percent > 90 || b.isOverpacing ? M3.error : b.percent > 75 ? "#FFB74D" : M3.primary;
+            const barColor = b.percent > 90 ? M3.error : b.percent > 75 ? "#FFB74D" : M3.primary;
             const remaining = parseFloat(b.limit_amount) - b.spent;
             return (
               <div
                 key={b.id}
                 style={{ ...card }}
-                className="p-4 md:p-6 transition-all duration-200 hover:scale-[1.01] w-full"
+                className="p-4 md:p-6 transition-all duration-200 hover:scale-[1.01] w-full group"
               >
-                {/* Card top */}
                 <div className="flex justify-between items-start mb-4">
-                  <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-lg"
-                    style={{ background: M3.primaryContainer, color: M3.onPrimaryContainer }}
-                  >
-                    {b.category[0]}
+                  <div className="flex gap-2 items-center">
+                    <div
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-lg"
+                      style={{ background: M3.primaryContainer, color: M3.onPrimaryContainer }}
+                    >
+                      {b.category[0]}
+                    </div>
+                    <button
+                      onClick={() => deleteMutation.mutate(b.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-2"
+                      title="Delete budget"
+                    >
+                      <Trash2 size={16} style={{ color: M3.error }} />
+                    </button>
                   </div>
                   <div className="text-right">
                     <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: M3.onSurfaceVariant }}>
@@ -286,26 +308,23 @@ export default function BudgetsPage() {
                       style={{ width: `${b.percent}%`, background: barColor }}
                     />
                   </div>
-                  <p className="text-xs" style={{ color: M3.onSurfaceVariant }}>
-                    {Math.round(timePercent)}% of month passed
-                  </p>
                 </div>
 
                 {/* Status badge */}
-                {b.isOverpacing && b.percent < 100 && (
+                {b.percent >= 100 && (
                   <div className="mt-4 px-3 py-2 rounded-xl flex items-center gap-2"
                     style={{ background: M3.errorContainer }}>
                     <TrendingDown size={14} style={{ color: M3.error }} />
                     <p className="text-xs font-medium" style={{ color: M3.error }}>
-                      Spending too fast — {Math.round(b.percent)}% used, {Math.round(timePercent)}% of month
+                      Budget exceeded for today
                     </p>
                   </div>
                 )}
-                {!b.isOverpacing && b.percent < 80 && (
+                {b.percent < 80 && (
                   <div className="mt-4 px-3 py-2 rounded-xl flex items-center gap-2"
                     style={{ background: M3.greenContainer }}>
                     <TrendingUp size={14} style={{ color: M3.green }} />
-                    <p className="text-xs font-medium" style={{ color: M3.green }}>On track</p>
+                    <p className="text-xs font-medium" style={{ color: M3.green }}>On track for today</p>
                   </div>
                 )}
               </div>

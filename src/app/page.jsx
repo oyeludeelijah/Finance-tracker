@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, ChevronRight, X } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, ChevronRight, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth.jsx";
@@ -140,6 +140,20 @@ export default function Dashboard() {
     onError: (e) => toast.error(e.message || "Failed to add transaction"),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      if (!user) throw new Error("Unauthorized");
+      const { error } = await supabase.from("transactions").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Transaction deleted!");
+    },
+    onError: (e) => toast.error(e.message || "Failed to delete transaction"),
+  });
+
   const stats = transactions.reduce(
     (acc, t) => {
       const amt = parseFloat(t.amount);
@@ -152,7 +166,7 @@ export default function Dashboard() {
 
   const balance = stats.income - stats.expense;
   const totalBudgetLimits = budgets.reduce((s, b) => s + parseFloat(b.limit_amount || 0), 0);
-  const safeToSpend = balance - totalBudgetLimits;
+  const safeToSpend = balance;
 
   // Money flow chart — last 6 months
   const monthlyData = (() => {
@@ -272,23 +286,20 @@ export default function Dashboard() {
       >
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>Safe to Spend</p>
+            <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>Current Balance</p>
             <h2 className="text-4xl font-bold" style={{ color: "#fff" }}>
               {symbol}{Math.abs(safeToSpend).toLocaleString()}
             </h2>
-            <p className="text-xs mt-2" style={{ color: "#ffffff99" }}>After expenses & committed budget limits</p>
+            <p className="text-xs mt-2" style={{ color: "#ffffff99" }}>
+              {safeToSpend < 0 ? "⚠️ You're spending more than you earn" : "After all your recorded expenses"}
+            </p>
           </div>
           <div className="flex sm:block gap-4 text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0 space-y-0 sm:space-y-1 justify-between" style={{ color: "#ffffff99" }}>
             <p className="text-[10px] md:text-xs">Income <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{stats.income.toLocaleString()}</span></p>
             <p className="text-[10px] md:text-xs">Spent <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{stats.expense.toLocaleString()}</span></p>
-            <p className="text-[10px] md:text-xs">Reserved <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalBudgetLimits.toLocaleString()}</span></p>
+            <p className="text-[10px] md:text-xs">Budget Limits <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalBudgetLimits.toLocaleString()}</span></p>
           </div>
         </div>
-        {safeToSpend < 0 && (
-          <p className="mt-4 text-xs font-semibold px-3 py-1.5 rounded-full inline-block" style={{ background: "#ffffff22", color: "#fff" }}>
-            ⚠️ Budget overcommitted
-          </p>
-        )}
       </div>
 
       {/* 4-Column KPI widgets */}
@@ -381,7 +392,7 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-5">
             <div>
               <h3 className="font-semibold" style={{ color: M3.onSurface }}>Budget Limits</h3>
-              <p className="text-xs mt-0.5" style={{ color: M3.onSurfaceVariant }}>Monthly targets</p>
+              <p className="text-xs mt-0.5" style={{ color: M3.onSurfaceVariant }}>Daily targets</p>
             </div>
           </div>
           {budgets.length === 0 ? (
@@ -392,7 +403,10 @@ export default function Dashboard() {
             <div className="space-y-4">
               {budgets.map((b) => {
                 const spent = transactions
-                  .filter((t) => t.type === "expense" && t.category === b.category)
+                  .filter((t) => {
+                    if (t.type !== "expense" || t.category !== b.category) return false;
+                    return new Date(t.created_at).toDateString() === new Date().toDateString();
+                  })
                   .reduce((s, t) => s + parseFloat(t.amount), 0);
                 const pct = Math.min((spent / parseFloat(b.limit_amount)) * 100, 100);
                 const over = pct >= 100;
@@ -448,7 +462,7 @@ export default function Dashboard() {
                 {transactions.slice(0, 12).map((t, idx) => (
                   <div
                     key={t.id}
-                    className="grid grid-cols-3 px-4 py-3 items-center text-sm transition-colors"
+                    className="grid grid-cols-3 px-4 py-3 items-center text-sm transition-colors group"
                     style={{
                       background: idx % 2 === 0 ? M3.surfaceContainerHigh : "transparent",
                       borderTop: `1px solid ${M3.outlineVariant}`,
@@ -468,9 +482,18 @@ export default function Dashboard() {
                         {t.category}
                       </span>
                     </div>
-                    <p className="text-right font-semibold" style={{ color: t.type === "income" ? M3.green : M3.error }}>
-                      {t.type === "income" ? "+" : "-"}{symbol}{parseFloat(t.amount).toLocaleString()}
-                    </p>
+                    <div className="flex justify-end items-center gap-3">
+                      <p className="text-right font-semibold" style={{ color: t.type === "income" ? M3.green : M3.error }}>
+                        {t.type === "income" ? "+" : "-"}{symbol}{parseFloat(t.amount).toLocaleString()}
+                      </p>
+                      <button
+                        onClick={() => deleteMutation.mutate(t.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Delete transaction"
+                      >
+                        <Trash2 size={14} style={{ color: M3.error }} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
