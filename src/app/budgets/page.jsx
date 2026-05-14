@@ -1,135 +1,24 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Target, Plus, TrendingUp, TrendingDown, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/utils/useCurrency";
-import { useAuth } from "@/hooks/useAuth.jsx";
-import { supabase } from "@/lib/supabase";
+import { useTransactions } from "@/hooks/useTransactions";
+import { useBudgets } from "@/hooks/useBudgets";
+import { getBudgetStats, calculateTotalDailyLimit } from "@/utils/financeMath";
 
-const M3 = {
-  surface: "#1C1B1F",
-  surfaceContainer: "#211F26",
-  surfaceContainerHigh: "#2B2930",
-  surfaceContainerHighest: "#36343B",
-  surfaceVariant: "#49454F",
-  primary: "#D0BCFF",
-  primaryContainer: "#4F378B",
-  onPrimaryContainer: "#EADDFF",
-  secondary: "#CCC2DC",
-  secondaryContainer: "#4A4458",
-  onSurface: "#E6E1E5",
-  onSurfaceVariant: "#CAC4D0",
-  outline: "#49454F",
-  outlineVariant: "#49454F44",
-  error: "#F2B8B8",
-  errorContainer: "#8C1D18",
-  green: "#6DD58C",
-  greenContainer: "#0A3818",
-};
-
-const card = {
-  background: M3.surfaceContainerHigh,
-  border: `1px solid ${M3.outlineVariant}`,
-  borderRadius: "20px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.32)",
-};
-
-const inputStyle = {
-  background: M3.surfaceContainerHighest,
-  border: `1px solid ${M3.outline}`,
-  borderRadius: 12,
-  color: M3.onSurface,
-  padding: "10px 14px",
-  outline: "none",
-  fontSize: 14,
-  width: "100%",
-  minHeight: "48px",
-};
+import { M3, card, inputStyle } from "@/lib/theme";
 
 export default function BudgetsPage() {
-  const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [formData, setFormData] = useState({ category: "Food", limit_amount: "" });
   const { symbol, setCurrency, CURRENCIES } = useCurrency();
-  const { user } = useAuth();
 
   const today = new Date();
 
-  const { data: budgets = [] } = useQuery({
-    queryKey: ["budgets", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("budgets")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const { data: transactions = [] } = useQuery({
-    queryKey: ["transactions", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const addMutation = useMutation({
-    mutationFn: async (data) => {
-      if (!user) throw new Error("Unauthorized");
-      const { data: newBudget, error } = await supabase
-        .from("budgets")
-        .insert([{ user_id: user.id, ...data, period: "daily" }])
-        .select()
-        .single();
-      if (error) throw error;
-      return newBudget;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      toast.success("Budget created!");
-      setShowAdd(false);
-      setFormData({ category: "Food", limit_amount: "" });
-    },
-    onError: () => toast.error("Failed to create budget"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      if (!user) throw new Error("Unauthorized");
-      const { error } = await supabase.from("budgets").delete().eq("id", id);
-      if (error) throw error;
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      toast.success("Budget deleted!");
-    },
-    onError: (e) => toast.error(e.message || "Failed to delete budget"),
-  });
-
-  const budgetStats = budgets.map((b) => {
-    const spent = transactions
-      .filter((t) => {
-        if (t.category !== b.category || t.type !== "expense") return false;
-        const txDate = new Date(t.created_at);
-        return txDate.toDateString() === today.toDateString();
-      })
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    const percent = Math.min((spent / parseFloat(b.limit_amount)) * 100, 100);
-    return { ...b, spent, percent };
-  });
-
-  const totalLimit = budgets.reduce((s, b) => s + parseFloat(b.limit_amount || 0), 0);
+  const { budgets, addBudget, isAdding, deleteBudget } = useBudgets();
+  const { transactions } = useTransactions(100);
+  const budgetStats = getBudgetStats(budgets, transactions);
+  const totalLimit = calculateTotalDailyLimit(budgets);
   const totalSpent = budgetStats.reduce((s, b) => s + b.spent, 0);
   const overallPct = totalLimit > 0 ? Math.min((totalSpent / totalLimit) * 100, 100) : 0;
 
@@ -208,10 +97,22 @@ export default function BudgetsPage() {
 
       {/* Add form */}
       {showAdd && (
-        <div style={{ ...card, background: M3.surfaceContainer }} className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-200">
+        <form 
+          onSubmit={(e) => { 
+            e.preventDefault(); 
+            addBudget(formData, {
+              onSuccess: () => {
+                setFormData({ category: "Food", limit_amount: "" });
+                setShowAdd(false);
+              }
+            }); 
+          }}
+          style={{ ...card, background: M3.surfaceContainer }} 
+          className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-200"
+        >
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold" style={{ color: M3.onSurface }}>Set Daily Budget</h3>
-            <button onClick={() => setShowAdd(false)} style={{ color: M3.onSurfaceVariant }}>
+            <button type="button" onClick={() => setShowAdd(false)} style={{ color: M3.onSurfaceVariant }}>
               <X size={18} />
             </button>
           </div>
@@ -233,14 +134,14 @@ export default function BudgetsPage() {
               onChange={(e) => setFormData({ ...formData, limit_amount: e.target.value })}
             />
             <button
-              onClick={() => addMutation.mutate(formData)}
+              type="submit"
               className="px-8 py-2.5 rounded-full font-semibold text-sm whitespace-nowrap min-h-[48px]"
               style={{ background: M3.primary, color: "#21005D", minWidth: 100 }}
             >
-              {addMutation.isPending ? "Saving…" : "Create"}
+              {isAdding ? "Saving…" : "Create"}
             </button>
           </div>
-        </div>
+        </form>
       )}
 
       {/* Budget cards */}
@@ -272,7 +173,7 @@ export default function BudgetsPage() {
                       {b.category[0]}
                     </div>
                     <button
-                      onClick={() => deleteMutation.mutate(b.id)}
+                      onClick={() => deleteBudget(b.id)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-2"
                       title="Delete budget"
                     >

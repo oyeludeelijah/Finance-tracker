@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -11,35 +11,9 @@ import {
 import { Download, TrendingUp, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { useCurrency } from "@/utils/useCurrency";
-import { supabase } from "@/lib/supabase";
+import { useTransactions } from "@/hooks/useTransactions";
 
-const M3 = {
-  surface: "#1C1B1F",
-  surfaceContainer: "#211F26",
-  surfaceContainerHigh: "#2B2930",
-  surfaceContainerHighest: "#36343B",
-  surfaceVariant: "#49454F",
-  primary: "#D0BCFF",
-  primaryContainer: "#4F378B",
-  onPrimaryContainer: "#EADDFF",
-  secondary: "#CCC2DC",
-  secondaryContainer: "#4A4458",
-  onSurface: "#E6E1E5",
-  onSurfaceVariant: "#CAC4D0",
-  outline: "#49454F",
-  outlineVariant: "#49454F44",
-  error: "#F2B8B8",
-  errorContainer: "#8C1D18",
-  green: "#6DD58C",
-  greenContainer: "#0A3818",
-};
-
-const card = {
-  background: M3.surfaceContainerHigh,
-  border: `1px solid ${M3.outlineVariant}`,
-  borderRadius: "20px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.32)",
-};
+import { M3, card } from "@/lib/theme";
 
 const CustomTooltip = ({ active, payload, label, symbol }) => {
   if (!active || !payload?.length) return null;
@@ -57,22 +31,8 @@ const CustomTooltip = ({ active, payload, label, symbol }) => {
 
 export default function HistoryPage() {
   const { user } = useAuth();
+  const { transactions } = useTransactions(100);
   const { symbol } = useCurrency();
-
-  const { data: transactions = [] } = useQuery({
-    queryKey: ["transactions", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1000); // More for history
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
@@ -96,6 +56,17 @@ export default function HistoryPage() {
     ? transactions.filter((t) => isSameDay(new Date(t.created_at), selectedDay))
     : [];
   const weekLabel = `${format(weekStart, "d MMM")} – ${format(weekEnd, "d MMM yyyy")}`;
+
+  const totalStats = transactions.reduce(
+    (acc, t) => {
+      const amt = parseFloat(t.amount);
+      if (t.type === "income") acc.income += amt;
+      else acc.expense += amt;
+      return acc;
+    },
+    { income: 0, expense: 0 }
+  );
+  const totalNet = totalStats.income - totalStats.expense;
 
   const navBtn = {
     background: M3.surfaceContainerHighest,
@@ -141,6 +112,34 @@ export default function HistoryPage() {
           </button>
         </div>
       </header>
+
+      {/* Historical Flow Hero */}
+      <div
+        className="p-4 md:p-7 md:px-8"
+        style={{
+          borderRadius: 24,
+          background: totalNet >= 0
+            ? `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`
+            : `linear-gradient(135deg, ${M3.errorContainer}, #B91C1C)`,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>All-Time Net Flow</p>
+            <h2 className="text-4xl font-bold" style={{ color: "#fff" }}>
+              {symbol}{Math.abs(totalNet).toLocaleString()}
+            </h2>
+            <p className="text-xs mt-2" style={{ color: "#ffffff99" }}>
+              {totalNet < 0 ? "⚠️ You've spent more than you've earned historically" : "Positive historical balance"}
+            </p>
+          </div>
+          <div className="flex sm:block gap-4 text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0 space-y-0 sm:space-y-1 justify-between" style={{ color: "#ffffff99" }}>
+            <p className="text-[10px] md:text-xs">Total Inflows <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalStats.income.toLocaleString()}</span></p>
+            <p className="text-[10px] md:text-xs">Total Outflows <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalStats.expense.toLocaleString()}</span></p>
+          </div>
+        </div>
+      </div>
 
       {/* Chart + sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

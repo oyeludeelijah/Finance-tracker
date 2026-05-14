@@ -1,48 +1,20 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, ChevronRight, X, Trash2 } from "lucide-react";
+import Calculator from "@/components/Calculator";
+
+import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, ChevronRight, X, Trash2, Calculator as CalcIcon } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { useCurrency } from "@/utils/useCurrency";
-import { supabase } from "@/lib/supabase";
+import { useTransactions } from "@/hooks/useTransactions";
+import { useBudgets } from "@/hooks/useBudgets";
+import { calculateTotals, calculateDailySpent, calculateTotalDailyLimit } from "@/utils/financeMath";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend,
 } from "recharts";
 
-// M3 Dark tokens
-const M3 = {
-  surface: "#1C1B1F",
-  surfaceVariant: "#49454F",
-  surfaceContainer: "#211F26",
-  surfaceContainerHigh: "#2B2930",
-  surfaceContainerHighest: "#36343B",
-  primary: "#D0BCFF",
-  primaryContainer: "#4F378B",
-  onPrimaryContainer: "#EADDFF",
-  secondary: "#CCC2DC",
-  secondaryContainer: "#4A4458",
-  tertiary: "#EFB8C8",
-  tertiaryContainer: "#633B48",
-  onSurface: "#E6E1E5",
-  onSurfaceVariant: "#CAC4D0",
-  outline: "#49454F",
-  outlineVariant: "#49454F44",
-  error: "#F2B8B8",
-  errorContainer: "#8C1D18",
-  green: "#6DD58C",
-  greenContainer: "#0A3818",
-};
-
-const card = {
-  background: M3.surfaceContainerHigh,
-  border: `1px solid ${M3.outlineVariant}`,
-  borderRadius: "20px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.32)",
-};
-
-const CATEGORY_COLORS = ["#D0BCFF", "#CCC2DC", "#EFB8C8", "#80CBC4", "#FFB74D"];
+import { M3, card, inputStyle, CATEGORY_COLORS } from "@/lib/theme";
 
 function StatCard({ label, value, icon: Icon, iconBg, iconColor, sub, positive }) {
   return (
@@ -84,89 +56,19 @@ const CustomTooltip = ({ active, payload, label, symbol }) => {
 };
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
+  const { transactions, addTransaction, isAdding, deleteTransaction } = useTransactions(100);
+  const { budgets } = useBudgets();
   const [showForm, setShowForm] = useState(false);
+  const [showCalc, setShowCalc] = useState(false);
   const { symbol } = useCurrency();
   const { user } = useAuth();
 
   const [formData, setFormData] = useState({ amount: "", description: "", category: "Food", type: "expense" });
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ["transactions", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const { data: budgets = [] } = useQuery({
-    queryKey: ["budgets", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("budgets")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const addMutation = useMutation({
-    mutationFn: async (data) => {
-      if (!user) throw new Error("Unauthorized");
-      const { data: newTransaction, error } = await supabase
-        .from("transactions")
-        .insert([{ user_id: user.id, ...data }])
-        .select()
-        .single();
-      if (error) throw error;
-      return newTransaction;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success("Transaction added!");
-      setFormData({ amount: "", description: "", category: "Food", type: "expense" });
-      setShowForm(false);
-    },
-    onError: (e) => toast.error(e.message || "Failed to add transaction"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      if (!user) throw new Error("Unauthorized");
-      const { error } = await supabase.from("transactions").delete().eq("id", id);
-      if (error) throw error;
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success("Transaction deleted!");
-    },
-    onError: (e) => toast.error(e.message || "Failed to delete transaction"),
-  });
-
-  const stats = transactions.reduce(
-    (acc, t) => {
-      const amt = parseFloat(t.amount);
-      if (t.type === "income") acc.income += amt;
-      else acc.expense += amt;
-      return acc;
-    },
-    { income: 0, expense: 0 }
-  );
-
-  const balance = stats.income - stats.expense;
-  const totalBudgetLimits = budgets.reduce((s, b) => s + parseFloat(b.limit_amount || 0), 0);
-  const safeToSpend = balance;
+  const { income, expense: totalExpense, balance } = calculateTotals(transactions);
+  const todaySpent = calculateDailySpent(transactions);
+  const totalDailyLimit = calculateTotalDailyLimit(budgets);
+  const dailySafeToSpend = totalDailyLimit - todaySpent;
 
   // Money flow chart — last 6 months
   const monthlyData = (() => {
@@ -192,36 +94,49 @@ export default function Dashboard() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
 
-  const inputStyle = {
-    background: M3.surfaceContainerHighest,
-    border: `1px solid ${M3.outline}`,
-    borderRadius: 12,
-    color: M3.onSurface,
-    padding: "10px 14px",
-    outline: "none",
-    fontSize: 14,
-    width: "100%",
-  };
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="space-y-6">
+      {/* Calculator — always mounted so state persists across open/close */}
+      <Calculator show={showCalc} onClose={() => setShowCalc(false)} />
 
       {/* Header */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: M3.onSurface }}>Good morning 👋</h1>
+          <h1 className="text-2xl font-bold" style={{ color: M3.onSurface }}>{greeting} 👋</h1>
           <p className="text-sm mt-1" style={{ color: M3.onSurfaceVariant }}>Here's your financial overview</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-all duration-200"
-          style={{ background: M3.primary, color: "#21005D" }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-        >
-          <Plus size={18} />
-          Add Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Calculator toggle */}
+          <button
+            onClick={() => setShowCalc((v) => !v)}
+            className="flex items-center justify-center rounded-full transition-all duration-200"
+            title="Toggle Calculator"
+            style={{
+              width: 40, height: 40,
+              background: showCalc ? M3.primaryContainer : M3.surfaceContainerHigh,
+              color: showCalc ? M3.onPrimaryContainer : M3.onSurfaceVariant,
+              border: `1px solid ${M3.outlineVariant}`,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            <CalcIcon size={18} />
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-all duration-200"
+            style={{ background: M3.primary, color: "#21005D" }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            <Plus size={18} />
+            Add Transaction
+          </button>
+        </div>
       </header>
 
       {/* Add Transaction Form */}
@@ -234,7 +149,15 @@ export default function Dashboard() {
             </button>
           </div>
           <form
-            onSubmit={(e) => { e.preventDefault(); addMutation.mutate(formData); }}
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              addTransaction(formData, {
+                onSuccess: () => {
+                  setFormData({ amount: "", description: "", category: "Food", type: "expense" });
+                  setShowForm(false);
+                }
+              }); 
+            }}
             className="grid grid-cols-1 md:grid-cols-2 gap-3"
           >
             <input
@@ -263,11 +186,11 @@ export default function Dashboard() {
               <option value="income" style={{ background: M3.surfaceContainerHighest }}>Income</option>
             </select>
             <button
-              type="submit" disabled={addMutation.isPending}
+              type="submit" disabled={isAdding}
               className="md:col-span-2 py-3 rounded-full font-semibold text-sm transition-all"
-              style={{ background: M3.primary, color: "#21005D", opacity: addMutation.isPending ? 0.6 : 1 }}
+              style={{ background: M3.primary, color: "#21005D", opacity: isAdding ? 0.6 : 1 }}
             >
-              {addMutation.isPending ? "Saving…" : "Save Transaction"}
+              {isAdding ? "Saving…" : "Save Transaction"}
             </button>
           </form>
         </div>
@@ -278,7 +201,7 @@ export default function Dashboard() {
         className="p-4 md:p-7 md:px-8"
         style={{
           borderRadius: 24,
-          background: safeToSpend >= 0
+          background: balance >= 0
             ? `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`
             : `linear-gradient(135deg, ${M3.errorContainer}, #B91C1C)`,
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
@@ -288,16 +211,16 @@ export default function Dashboard() {
           <div>
             <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>Current Balance</p>
             <h2 className="text-4xl font-bold" style={{ color: "#fff" }}>
-              {symbol}{Math.abs(safeToSpend).toLocaleString()}
+              {symbol}{Math.abs(balance).toLocaleString()}
             </h2>
             <p className="text-xs mt-2" style={{ color: "#ffffff99" }}>
-              {safeToSpend < 0 ? "⚠️ You're spending more than you earn" : "After all your recorded expenses"}
+              {balance < 0 ? "⚠️ You're spending more than you earn" : "After all your recorded expenses"}
             </p>
           </div>
           <div className="flex sm:block gap-4 text-left sm:text-right w-full sm:w-auto mt-2 sm:mt-0 space-y-0 sm:space-y-1 justify-between" style={{ color: "#ffffff99" }}>
-            <p className="text-[10px] md:text-xs">Income <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{stats.income.toLocaleString()}</span></p>
-            <p className="text-[10px] md:text-xs">Spent <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{stats.expense.toLocaleString()}</span></p>
-            <p className="text-[10px] md:text-xs">Budget Limits <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalBudgetLimits.toLocaleString()}</span></p>
+            <p className="text-[10px] md:text-xs">Spent Today <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{todaySpent.toLocaleString()}</span></p>
+            <p className="text-[10px] md:text-xs">Safe to Spend <br className="sm:hidden" /><span className="text-white font-semibold" style={{ color: dailySafeToSpend < 0 ? "#FF6B6B" : "#fff" }}>{symbol}{dailySafeToSpend.toLocaleString()}</span></p>
+            <p className="text-[10px] md:text-xs">Daily Limit <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalDailyLimit.toLocaleString()}</span></p>
           </div>
         </div>
       </div>
@@ -306,9 +229,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Net Balance" value={`${symbol}${balance.toLocaleString()}`}
           icon={Wallet} iconBg={M3.primaryContainer} iconColor={M3.onPrimaryContainer} />
-        <StatCard label="Income" value={`${symbol}${stats.income.toLocaleString()}`}
+        <StatCard label="Income" value={`${symbol}${income.toLocaleString()}`}
           icon={ArrowUpRight} iconBg={M3.greenContainer} iconColor={M3.green} />
-        <StatCard label="Expenses" value={`${symbol}${stats.expense.toLocaleString()}`}
+        <StatCard label="Expenses" value={`${symbol}${totalExpense.toLocaleString()}`}
           icon={ArrowDownLeft} iconBg={M3.errorContainer} iconColor={M3.error} />
         <StatCard
           label="Net Worth" value={`${balance < 0 ? "-" : ""}${symbol}${Math.abs(balance).toLocaleString()}`}
@@ -487,7 +410,7 @@ export default function Dashboard() {
                         {t.type === "income" ? "+" : "-"}{symbol}{parseFloat(t.amount).toLocaleString()}
                       </p>
                       <button
-                        onClick={() => deleteMutation.mutate(t.id)}
+                        onClick={() => deleteTransaction(t.id)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Delete transaction"
                       >

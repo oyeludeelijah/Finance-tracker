@@ -3,18 +3,7 @@ import { LayoutDashboard, History, Target, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth.jsx";
 import { useLocation, Link } from "react-router";
 
-// M3 Dark color tokens
-const M3 = {
-  surface: "#1C1B1F",
-  surfaceContainer: "#211F26",
-  surfaceContainerHigh: "#2B2930",
-  primary: "#D0BCFF",
-  primaryContainer: "#4F378B",
-  onPrimaryContainer: "#EADDFF",
-  onSurface: "#E6E1E5",
-  onSurfaceVariant: "#CAC4D0",
-  outline: "#49454F",
-};
+import { M3 } from "@/lib/theme";
 
 const navItems = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
