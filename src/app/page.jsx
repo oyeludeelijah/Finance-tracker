@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import Calculator from "@/components/Calculator";
 
 import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, ChevronRight, X, Trash2, Calculator as CalcIcon } from "lucide-react";
@@ -16,9 +17,16 @@ import {
 
 import { M3, card, inputStyle, CATEGORY_COLORS } from "@/lib/theme";
 
-function StatCard({ label, value, icon: Icon, iconBg, iconColor, sub, positive }) {
+function StatCard({ label, value, icon: Icon, iconBg, iconColor, sub, positive, index = 0 }) {
   return (
-    <div style={card} className="p-4 md:p-6">
+    <motion.div
+      style={card}
+      className="p-4 md:p-6"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 + index * 0.08, duration: 0.35, ease: "easeOut" }}
+      whileHover={{ y: -3, transition: { duration: 0.18 } }}
+    >
       <div className="flex justify-between items-start mb-3">
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: M3.onSurfaceVariant }}>
           {label}
@@ -35,7 +43,7 @@ function StatCard({ label, value, icon: Icon, iconBg, iconColor, sub, positive }
           {positive ? "↑" : "↓"} {sub}
         </p>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -140,8 +148,17 @@ export default function Dashboard() {
       </header>
 
       {/* Add Transaction Form */}
-      {showForm && (
-        <div style={{ ...card, background: M3.surfaceContainer }} className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-300">
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            key="txn-form"
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: "auto", marginTop: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.28, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+          >
+            <div style={{ ...card, background: M3.surfaceContainer }} className="p-4 md:p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold" style={{ color: M3.onSurface }}>New Transaction</h3>
             <button onClick={() => setShowForm(false)} style={{ color: M3.onSurfaceVariant }}>
@@ -193,17 +210,22 @@ export default function Dashboard() {
               {isAdding ? "Saving…" : "Save Transaction"}
             </button>
           </form>
-        </div>
-      )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Safe-to-Spend Hero */}
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
         className="p-4 md:p-7 md:px-8"
         style={{
           borderRadius: 24,
           background: balance >= 0
-            ? `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`
-            : `linear-gradient(135deg, ${M3.errorContainer}, #B91C1C)`,
+            ? "linear-gradient(135deg, #5B3F9A, #6B21A8)"
+            : "linear-gradient(135deg, #8C1D18, #B91C1C)",
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
         }}
       >
@@ -223,21 +245,22 @@ export default function Dashboard() {
             <p className="text-[10px] md:text-xs">Daily Limit <br className="sm:hidden" /><span className="text-white font-semibold">{symbol}{totalDailyLimit.toLocaleString()}</span></p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 4-Column KPI widgets */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Net Balance" value={`${symbol}${balance.toLocaleString()}`}
-          icon={Wallet} iconBg={M3.primaryContainer} iconColor={M3.onPrimaryContainer} />
+          icon={Wallet} iconBg={M3.primaryContainer} iconColor={M3.onPrimaryContainer} index={0} />
         <StatCard label="Income" value={`${symbol}${income.toLocaleString()}`}
-          icon={ArrowUpRight} iconBg={M3.greenContainer} iconColor={M3.green} />
+          icon={ArrowUpRight} iconBg={M3.greenContainer} iconColor={M3.green} index={1} />
         <StatCard label="Expenses" value={`${symbol}${totalExpense.toLocaleString()}`}
-          icon={ArrowDownLeft} iconBg={M3.errorContainer} iconColor={M3.error} />
+          icon={ArrowDownLeft} iconBg={M3.errorContainer} iconColor={M3.error} index={2} />
         <StatCard
           label="Net Worth" value={`${balance < 0 ? "-" : ""}${symbol}${Math.abs(balance).toLocaleString()}`}
           icon={balance >= 0 ? TrendingUp : TrendingDown}
           iconBg={balance >= 0 ? M3.greenContainer : M3.errorContainer}
           iconColor={balance >= 0 ? M3.green : M3.error}
+          index={3}
         />
       </div>
 
@@ -260,11 +283,11 @@ export default function Dashboard() {
             {monthlyData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={`${M3.outline}44`} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={M3.outlineAlpha44} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false}
                     style={{ fontSize: 11, fill: M3.onSurfaceVariant }} dy={8} />
                   <YAxis axisLine={false} tickLine={false} style={{ fontSize: 11, fill: M3.onSurfaceVariant }} />
-                  <Tooltip content={<CustomTooltip symbol={symbol} />} cursor={{ fill: `${M3.primary}10` }} />
+                  <Tooltip content={<CustomTooltip symbol={symbol} />} cursor={{ fill: M3.primaryAlpha10 }} />
                   <Bar dataKey="income" fill={M3.primary} radius={[6, 6, 0, 0]} barSize={18} />
                   <Bar dataKey="expenses" fill={M3.error} radius={[6, 6, 0, 0]} barSize={18} />
                 </BarChart>
@@ -383,8 +406,11 @@ export default function Dashboard() {
               {/* Rows */}
               <div className="max-h-[280px] overflow-y-auto">
                 {transactions.slice(0, 12).map((t, idx) => (
-                  <div
+                  <motion.div
                     key={t.id}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.04, duration: 0.22, ease: "easeOut" }}
                     className="grid grid-cols-3 px-4 py-3 items-center text-sm transition-colors group"
                     style={{
                       background: idx % 2 === 0 ? M3.surfaceContainerHigh : "transparent",
@@ -417,7 +443,7 @@ export default function Dashboard() {
                         <Trash2 size={14} style={{ color: M3.error }} />
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>

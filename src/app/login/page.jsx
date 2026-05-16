@@ -77,7 +77,7 @@ export default function LoginPage() {
           background: M3.surfaceContainerHigh, 
           borderRadius: '24px',
           minHeight: '600px',
-          border: `1px solid ${M3.outline}44`
+          border: `1px solid ${M3.outlineAlpha44}`
         }}
       >
         {/* Left Side - Dark Card with Glow (Hidden on Mobile) */}

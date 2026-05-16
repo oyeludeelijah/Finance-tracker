@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -119,8 +120,8 @@ export default function HistoryPage() {
         style={{
           borderRadius: 24,
           background: totalNet >= 0
-            ? `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`
-            : `linear-gradient(135deg, ${M3.errorContainer}, #B91C1C)`,
+            ? "linear-gradient(135deg, #5B3F9A, #6B21A8)"
+            : "linear-gradient(135deg, #8C1D18, #B91C1C)",
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
         }}
       >
@@ -173,11 +174,11 @@ export default function HistoryPage() {
                   }
                 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={`${M3.outline}44`} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={M3.outlineAlpha44} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false}
                   style={{ fontSize: 11, fill: M3.onSurfaceVariant }} dy={8} />
                 <YAxis axisLine={false} tickLine={false} style={{ fontSize: 11, fill: M3.onSurfaceVariant }} />
-                <Tooltip content={<CustomTooltip symbol={symbol} />} cursor={{ fill: `${M3.primary}10` }} />
+                <Tooltip content={<CustomTooltip symbol={symbol} />} cursor={{ fill: M3.primaryAlpha10 }} />
                 <Bar dataKey="income" radius={[6, 6, 0, 0]} barSize={22} cursor="pointer">
                   {chartData.map((entry, i) => (
                     <Cell key={i}
@@ -204,8 +205,8 @@ export default function HistoryPage() {
           <div className="p-4 md:p-5" style={{
             borderRadius: 20,
             background: weekNet >= 0
-              ? `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`
-              : `linear-gradient(135deg, ${M3.errorContainer}, #B91C1C)`,
+              ? "linear-gradient(135deg, #5B3F9A, #6B21A8)"
+              : "linear-gradient(135deg, #8C1D18, #B91C1C)",
             boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
           }}>
             <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "#D0BCFFaa" }}>Week Net</p>
@@ -226,14 +227,17 @@ export default function HistoryPage() {
             <h4 className="font-semibold mb-3 text-sm" style={{ color: M3.onSurface }}>Daily Stats</h4>
             <div className="space-y-1">
               {chartData.map((d, i) => (
-                <div
+                <motion.div
                   key={i}
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06, duration: 0.22, ease: "easeOut" }}
                   onClick={() => setSelectedDay(prev => prev && isSameDay(prev, d.date) ? null : d.date)}
                   className="flex justify-between items-center p-2 rounded-xl cursor-pointer transition-colors"
                   style={{
                     background: selectedDay && isSameDay(selectedDay, d.date) ? M3.primaryContainer : "transparent",
                   }}
-                  onMouseEnter={(e) => { if (!(selectedDay && isSameDay(selectedDay, d.date))) e.currentTarget.style.background = `${M3.primary}14`; }}
+                  onMouseEnter={(e) => { if (!(selectedDay && isSameDay(selectedDay, d.date))) e.currentTarget.style.background = M3.primaryAlpha14; }}
                   onMouseLeave={(e) => { if (!(selectedDay && isSameDay(selectedDay, d.date))) e.currentTarget.style.background = "transparent"; }}
                 >
                   <div>
@@ -245,7 +249,7 @@ export default function HistoryPage() {
                   }}>
                     {d.balance > 0 ? "+" : ""}{symbol}{d.balance.toLocaleString()}
                   </p>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -253,8 +257,17 @@ export default function HistoryPage() {
       </div>
 
       {/* Drill-down panel */}
-      {selectedDay && (
-        <div style={{ ...card, background: M3.surfaceContainer }} className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-200">
+      <AnimatePresence>
+        {selectedDay && (
+          <motion.div
+            key="drill-down"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.26, ease: "easeOut" }}
+            style={{ ...card, background: M3.surfaceContainer }}
+            className="p-4 md:p-6"
+          >
           <div className="flex justify-between items-center mb-5">
             <div>
               <h3 className="font-semibold text-lg flex items-center gap-2" style={{ color: M3.onSurface }}>
@@ -292,8 +305,11 @@ export default function HistoryPage() {
                 <span className="text-right">Amount</span>
               </div>
               {dayTransactions.map((t, idx) => (
-                <div
+                <motion.div
                   key={t.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05, duration: 0.2, ease: "easeOut" }}
                   className="grid grid-cols-3 px-4 py-3 items-center text-sm"
                   style={{
                     background: idx % 2 === 0 ? M3.surfaceContainerHigh : "transparent",
@@ -322,12 +338,13 @@ export default function HistoryPage() {
                     style={{ color: t.type === "income" ? M3.green : M3.error }}>
                     {t.type === "income" ? "+" : "-"}{symbol}{parseFloat(t.amount).toLocaleString()}
                   </p>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

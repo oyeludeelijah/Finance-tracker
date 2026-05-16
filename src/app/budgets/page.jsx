@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Target, Plus, TrendingUp, TrendingDown, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/utils/useCurrency";
@@ -57,7 +58,7 @@ export default function BudgetsPage() {
       {/* Overview hero */}
       <div className="p-4 md:p-7 md:px-8" style={{
         ...card,
-        background: `linear-gradient(135deg, ${M3.primaryContainer}, #6B21A8)`,
+        background: "linear-gradient(135deg, #5B3F9A, #6B21A8)",
         border: "none",
         borderRadius: 24,
       }}>
@@ -96,19 +97,25 @@ export default function BudgetsPage() {
       </div>
 
       {/* Add form */}
-      {showAdd && (
-        <form 
-          onSubmit={(e) => { 
-            e.preventDefault(); 
+      <AnimatePresence>
+        {showAdd && (
+          <motion.form
+            key="budget-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            style={{ overflow: "hidden", ...card, background: M3.surfaceContainer }}
+            className="p-4 md:p-6"
+            onSubmit={(e) => {
+            e.preventDefault();
             addBudget(formData, {
               onSuccess: () => {
                 setFormData({ category: "Food", limit_amount: "" });
                 setShowAdd(false);
               }
-            }); 
+            });
           }}
-          style={{ ...card, background: M3.surfaceContainer }} 
-          className="p-4 md:p-6 animate-in fade-in slide-in-from-top-4 duration-200"
         >
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold" style={{ color: M3.onSurface }}>Set Daily Budget</h3>
@@ -141,8 +148,9 @@ export default function BudgetsPage() {
               {isAdding ? "Saving…" : "Create"}
             </button>
           </div>
-        </form>
-      )}
+          </motion.form>
+        )}
+      </AnimatePresence>
 
       {/* Budget cards */}
       {budgetStats.length === 0 ? (
@@ -155,12 +163,15 @@ export default function BudgetsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {budgetStats.map((b) => {
+          {budgetStats.map((b, idx) => {
             const barColor = b.percent > 90 ? M3.error : b.percent > 75 ? "#FFB74D" : M3.primary;
             const remaining = parseFloat(b.limit_amount) - b.spent;
             return (
-              <div
+              <motion.div
                 key={b.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.08, duration: 0.3, ease: "easeOut" }}
                 style={{ ...card }}
                 className="p-4 md:p-6 transition-all duration-200 hover:scale-[1.01] w-full group"
               >
@@ -204,9 +215,12 @@ export default function BudgetsPage() {
                     </span>
                   </div>
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: M3.surfaceVariant }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${b.percent}%`, background: barColor }}
+                    <motion.div
+                      className="h-full rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${b.percent}%` }}
+                      transition={{ duration: 0.9, ease: "easeOut", delay: idx * 0.08 + 0.2 }}
+                      style={{ background: barColor }}
                     />
                   </div>
                 </div>
@@ -228,7 +242,7 @@ export default function BudgetsPage() {
                     <p className="text-xs font-medium" style={{ color: M3.green }}>On track for today</p>
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })}
         </div>

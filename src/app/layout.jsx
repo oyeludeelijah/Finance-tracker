@@ -5,6 +5,8 @@ import { useState } from "react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth.jsx";
 import { Navigate, useLocation } from "react-router";
 import { Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata = {
   title: "FinanceAI - Personal Finance Assistant",
@@ -18,8 +20,8 @@ function AppShell({ children }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1C1B1F" }}>
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#D0BCFF" }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--m3-surface)" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--m3-primary)" }} />
       </div>
     );
   }
@@ -34,12 +36,25 @@ function AppShell({ children }) {
 
   return (
     <div
-      className="min-h-screen font-sans flex flex-col md:flex-row relative"
-      style={{ background: "#1C1B1F", color: "#E6E1E5" }}
+      className="min-h-screen font-sans"
+      style={{ background: "var(--m3-surface)", color: "var(--m3-on-surface)" }}
     >
       <Navigation />
-      <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto w-full">
-        <div className="max-w-6xl mx-auto">{children}</div>
+      {/* md:ml-64 offsets main content past the fixed 256px sidebar */}
+      <main className="md:ml-64 p-4 md:p-8 pb-24 md:pb-8 min-h-screen">
+        <div className="max-w-6xl mx-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.28, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
     </div>
   );
@@ -62,10 +77,12 @@ export default function RootLayout({ children }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Toaster position="top-center" richColors />
-        <AppShell>{children}</AppShell>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Toaster position="top-center" richColors />
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

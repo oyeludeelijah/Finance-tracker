@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { M3 } from "@/lib/theme";
 
 // Always mounted — state survives open/close on every device.
@@ -193,7 +194,7 @@ export default function Calculator({ show, onClose }) {
         <button
           onClick={onClose}
           style={{ background: "none", border: "none", cursor: "pointer", color: M3.onSurfaceVariant, display: "flex", padding: 4, borderRadius: 8 }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = `${M3.primary}22`)}
+          onMouseEnter={(e) => (e.currentTarget.style.background = M3.primaryAlpha20)}
           onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
         >
           <X size={15} />
@@ -244,37 +245,62 @@ export default function Calculator({ show, onClose }) {
   // ── Mobile: blur overlay, centered, click-outside closes ──────────
   if (isMobile) {
     return (
-      <div
-        style={{
-          display: show ? "flex" : "none",
-          position: "fixed",
-          inset: 0,
-          zIndex: 9999,
-          alignItems: "center",
-          justifyContent: "center",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          background: "rgba(0,0,0,0.4)",
-        }}
-        onClick={onClose}
-      >
-        {card}
-      </div>
+      <AnimatePresence>
+        {show && (
+          <motion.div
+            key="calc-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+              background: "rgba(0,0,0,0.4)",
+            }}
+            onClick={onClose}
+          >
+            <motion.div
+              initial={{ scale: 0.88, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.88, y: 24, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 340, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {card}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     );
   }
 
   // ── Desktop: fixed, draggable, no overlay ─────────────────────────
   return (
-    <div
-      style={{
-        display: show ? "block" : "none",
-        position: "fixed",
-        left: pos.x,
-        top: pos.y,
-        zIndex: 9999,
-      }}
-    >
-      {card}
-    </div>
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          key="calc-desktop"
+          initial={{ opacity: 0, scale: 0.88, y: -12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.88, y: -12 }}
+          transition={{ type: "spring", stiffness: 360, damping: 30 }}
+          style={{
+            position: "fixed",
+            left: pos.x,
+            top: pos.y,
+            zIndex: 9999,
+          }}
+        >
+          {card}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

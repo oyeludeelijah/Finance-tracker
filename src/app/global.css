@@ -2,14 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── M3 Design Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Dark theme (default) */
+  --m3-surface: #1C1B1F;
+  --m3-surface-variant: #49454F;
+  --m3-surface-container: #211F26;
+  --m3-surface-container-high: #2B2930;
+  --m3-surface-container-highest: #36343B;
+  --m3-primary: #D0BCFF;
+  --m3-primary-container: #4F378B;
+  --m3-on-primary-container: #EADDFF;
+  --m3-secondary: #CCC2DC;
+  --m3-secondary-container: #4A4458;
+  --m3-on-surface: #E6E1E5;
+  --m3-on-surface-variant: #CAC4D0;
+  --m3-outline: #49454F;
+  --m3-outline-variant: #49454F44;
+  --m3-error: #F2B8B8;
+  --m3-error-container: #8C1D18;
+  --m3-green: #6DD58C;
+  --m3-green-container: #0A3818;
+  /* alpha variants */
+  --m3-primary-10: #D0BCFF1A;
+  --m3-primary-14: #D0BCFF24;
+  --m3-primary-20: #D0BCFF33;
+  --m3-primary-aa: #D0BCFFaa;
+  --m3-outline-22: #49454F38;
+  --m3-outline-44: #49454F70;
+}
+
+:root.light {
+  --m3-surface: #FFFBFE;
+  --m3-surface-variant: #E7E0EC;
+  --m3-surface-container: #F3EDF7;
+  --m3-surface-container-high: #ECE6F0;
+  --m3-surface-container-highest: #E6E0E9;
+  --m3-primary: #6750A4;
+  --m3-primary-container: #EADDFF;
+  --m3-on-primary-container: #21005D;
+  --m3-secondary: #625B71;
+  --m3-secondary-container: #E8DEF8;
+  --m3-on-surface: #1C1B1F;
+  --m3-on-surface-variant: #49454F;
+  --m3-outline: #79747E;
+  --m3-outline-variant: #CAC4D066;
+  --m3-error: #B3261E;
+  --m3-error-container: #F9DEDC;
+  --m3-green: #146C2E;
+  --m3-green-container: #C8F5D5;
+  /* alpha variants */
+  --m3-primary-10: #6750A41A;
+  --m3-primary-14: #6750A424;
+  --m3-primary-20: #6750A433;
+  --m3-primary-aa: #6750A4aa;
+  --m3-outline-22: #79747E38;
+  --m3-outline-44: #79747E70;
+}
+
 * {
   font-family: 'Elms Sans', sans-serif;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  display: none; /* Chrome, Safari and Opera */
+  display: none;
 }
 
 @layer base {
